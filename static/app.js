@@ -162,7 +162,24 @@
   }
 
   function drawCandidates(geojson) {
-    if (!geojson) return;
+    if (!geojson || !geojson.features?.length) return;
+    const reachable = geojson.features.filter(
+      (f) => f.properties && f.properties.reachable && typeof f.properties.score === "number"
+    );
+    let minScore = Infinity;
+    let maxScore = -Infinity;
+    reachable.forEach((f) => {
+      minScore = Math.min(minScore, f.properties.score);
+      maxScore = Math.max(maxScore, f.properties.score);
+    });
+    if (!isFinite(minScore)) {
+      minScore = 0;
+      maxScore = 1;
+    }
+    if (Math.abs(maxScore - minScore) < 1e-6) {
+      maxScore = minScore + 1e-6;
+    }
+
     const sourceId = "candidates";
     sources.push(sourceId);
     map.addSource(sourceId, { type: "geojson", data: geojson });
@@ -173,11 +190,40 @@
       type: "circle",
       source: sourceId,
       paint: {
-        "circle-radius": 5,
-        "circle-color": "#f472b6",
+        "circle-radius": ["case", ["boolean", ["get", "reachable"], false], 6, 4],
+        "circle-color": [
+          "case",
+          ["boolean", ["get", "reachable"], false],
+          [
+            "interpolate",
+            ["linear"],
+            ["get", "score"],
+            minScore,
+            "#22c55e",
+            (minScore + maxScore) / 2,
+            "#f59e0b",
+            maxScore,
+            "#ef4444",
+          ],
+          "#475569",
+        ],
         "circle-stroke-width": 1,
         "circle-stroke-color": "#0b1224",
       },
+    });
+
+    const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
+    map.on("mouseenter", layerId, (e) => {
+      map.getCanvas().style.cursor = "pointer";
+      const { score, reachable } = e.features[0].properties;
+      const label = reachable
+        ? `Objective: ${Number(score).toFixed(2)}`
+        : "Unreachable (over budget)";
+      popup.setLngLat(e.lngLat).setHTML(label).addTo(map);
+    });
+    map.on("mouseleave", layerId, () => {
+      map.getCanvas().style.cursor = "";
+      popup.remove();
     });
   }
 

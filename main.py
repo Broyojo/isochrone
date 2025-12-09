@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import urllib.parse
 from contextlib import asynccontextmanager
 from functools import reduce
-import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import httpx
@@ -13,7 +13,14 @@ from fastapi import Body, FastAPI, HTTPException, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
-from shapely.geometry import GeometryCollection, MultiPolygon, Point, Polygon, shape, mapping
+from shapely.geometry import (
+    GeometryCollection,
+    MultiPolygon,
+    Point,
+    Polygon,
+    mapping,
+    shape,
+)
 
 # Configuration constants
 MAX_PARTICIPANTS = 10
@@ -22,7 +29,7 @@ MAX_MAX_MINUTES = 60
 SUPPORTED_OBJECTIVES = {"min_sum", "min_max"}
 SUPPORTED_PROFILES = {"walking", "driving"}
 DEFAULT_GRID_RESOLUTION_M = 200
-MAX_CANDIDATES = 60
+MAX_CANDIDATES = 100
 MAX_CONCURRENT_DIRECTIONS = 5
 
 # Simple in-memory cache for geocoding results
@@ -65,7 +72,9 @@ class MeetingPointRequest(BaseModel):
         if profile.startswith("mapbox/"):
             profile = profile.split("/", 1)[1]
         if profile not in SUPPORTED_PROFILES:
-            raise ValueError(f"profile must be one of: {', '.join(sorted(SUPPORTED_PROFILES))}")
+            raise ValueError(
+                f"profile must be one of: {', '.join(sorted(SUPPORTED_PROFILES))}"
+            )
         return profile
 
     @field_validator("objective")
@@ -73,7 +82,9 @@ class MeetingPointRequest(BaseModel):
     def normalize_objective(cls, value: str) -> str:
         objective = value.lower()
         if objective not in SUPPORTED_OBJECTIVES:
-            raise ValueError(f"objective must be one of: {', '.join(sorted(SUPPORTED_OBJECTIVES))}")
+            raise ValueError(
+                f"objective must be one of: {', '.join(sorted(SUPPORTED_OBJECTIVES))}"
+            )
         return objective
 
 
@@ -173,12 +184,16 @@ async def _fetch_isochrone(
     if resp.status_code >= 500:
         raise HTTPException(status_code=502, detail="Mapbox isochrone service error")
     if resp.status_code >= 400:
-        raise HTTPException(status_code=400, detail="Isochrone request rejected by Mapbox")
+        raise HTTPException(
+            status_code=400, detail="Isochrone request rejected by Mapbox"
+        )
 
     data = resp.json()
     features = data.get("features") or []
     if not features:
-        raise HTTPException(status_code=502, detail="Isochrone response contained no geometry")
+        raise HTTPException(
+            status_code=502, detail="Isochrone response contained no geometry"
+        )
 
     geom = features[0].get("geometry")
     polygon = shape(geom)
@@ -206,7 +221,9 @@ def _polygonal_region(geometry):
     if isinstance(geometry, (Polygon, MultiPolygon)):
         return _largest_component(geometry)
     if isinstance(geometry, GeometryCollection):
-        polys = [geom for geom in geometry.geoms if isinstance(geom, (Polygon, MultiPolygon))]
+        polys = [
+            geom for geom in geometry.geoms if isinstance(geom, (Polygon, MultiPolygon))
+        ]
         if not polys:
             return Polygon()
         merged = polys[0]
@@ -225,7 +242,9 @@ def _grid_step_degrees(resolution_m: float, lat_deg: float) -> Tuple[float, floa
     return lon_step, lat_step
 
 
-def _generate_candidate_points(region: Polygon, resolution_m: float) -> List[Tuple[float, float]]:
+def _generate_candidate_points(
+    region: Polygon, resolution_m: float
+) -> List[Tuple[float, float]]:
     """Generate a grid of candidate points inside the polygon, up to MAX_CANDIDATES."""
     minx, miny, maxx, maxy = region.bounds
     center_lat = (miny + maxy) / 2
@@ -281,12 +300,16 @@ async def _travel_time_seconds(
     if resp.status_code >= 500:
         raise HTTPException(status_code=502, detail="Mapbox directions service error")
     if resp.status_code >= 400:
-        raise HTTPException(status_code=400, detail="Directions request rejected by Mapbox")
+        raise HTTPException(
+            status_code=400, detail="Directions request rejected by Mapbox"
+        )
 
     data = resp.json()
     routes = data.get("routes") or []
     if not routes or routes[0].get("duration") is None:
-        raise HTTPException(status_code=502, detail="Directions response missing duration")
+        raise HTTPException(
+            status_code=502, detail="Directions response missing duration"
+        )
     return float(routes[0]["duration"])
 
 
@@ -306,19 +329,23 @@ async def meeting_point(payload: MeetingPointRequest = Body(...)):
     token = _mapbox_token()
     addresses = _deduplicate_addresses(payload.addresses)
     if not addresses:
-        raise HTTPException(status_code=400, detail="No addresses supplied after deduplication")
+        raise HTTPException(
+            status_code=400, detail="No addresses supplied after deduplication"
+        )
 
     client: httpx.AsyncClient = app.state.http_client
 
     # Geocode all addresses concurrently
     geocode_tasks = [
-        _geocode_address(client, address, payload.city_hint, token) for address in addresses
+        _geocode_address(client, address, payload.city_hint, token)
+        for address in addresses
     ]
     coords = await asyncio.gather(*geocode_tasks)
 
     async def compute_with_minutes(minutes: int):
         iso_tasks = [
-            _fetch_isochrone(client, coord, minutes, payload.profile, token) for coord in coords
+            _fetch_isochrone(client, coord, minutes, payload.profile, token)
+            for coord in coords
         ]
         shapes = await asyncio.gather(*iso_tasks)
         geom = _intersection(shapes)
@@ -381,17 +408,6 @@ async def meeting_point(payload: MeetingPointRequest = Body(...)):
         centroid = region.centroid
         if (centroid.x, centroid.y) not in candidates:
             candidates.append((centroid.x, centroid.y))
-        candidate_points_geojson = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {},
-                    "geometry": {"type": "Point", "coordinates": [pt[0], pt[1]]},
-                }
-                for pt in candidates
-            ],
-        }
     else:
         centroid = region.centroid
         candidates = [(centroid.x, centroid.y)]
@@ -399,17 +415,43 @@ async def meeting_point(payload: MeetingPointRequest = Body(...)):
     evaluations = await asyncio.gather(*(eval_candidate(pt) for pt in candidates))
     valid = [e for e in evaluations if e]
 
+    if payload.use_grid_search:
+        candidate_points_geojson = {
+            "type": "FeatureCollection",
+            "features": [],
+        }
+        for pt, ev in zip(candidates, evaluations):
+            props = {
+                "reachable": bool(ev),
+                "score": round(ev["score"], 4) if ev else None,
+            }
+            candidate_points_geojson["features"].append(
+                {
+                    "type": "Feature",
+                    "properties": props,
+                    "geometry": {"type": "Point", "coordinates": [pt[0], pt[1]]},
+                }
+            )
+
     if not valid:
         # fallback: centroid without budget filter
         centroid = region.centroid
         point = (centroid.x, centroid.y)
         durations = await asyncio.gather(
-            *[_travel_time_seconds(client, coord, point, payload.profile, token) for coord in coords]
+            *[
+                _travel_time_seconds(client, coord, point, payload.profile, token)
+                for coord in coords
+            ]
         )
         minutes = [d / 60 for d in durations]
         meeting_point = {"lat": point[1], "lng": point[0]}
         participants = [
-            {"address": address, "lat": coord[1], "lng": coord[0], "eta_minutes": round(m, 1)}
+            {
+                "address": address,
+                "lat": coord[1],
+                "lng": coord[0],
+                "eta_minutes": round(m, 1),
+            }
             for address, coord, m in zip(addresses, coords, minutes)
         ]
         return {
