@@ -1,0 +1,1 @@
+In this project, we are using `uv`, so use that instead of python. Also, try to keep things simple and clear.
