@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fair Meeting Point</title>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div>
+        <p class="eyebrow">Isochrone MVP</p>
+        <h1>Find a fair meeting point</h1>
+        <p class="lede">Enter up to 10 addresses, set a walking time budget, and we will pick a spot all of you can reach.</p>
+      </div>
+      <div class="pill">Mapbox + FastAPI</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <form id="meeting-form">
+          <div class="field">
+            <label>Addresses</label>
+            <div id="address-list"></div>
+            <button type="button" id="add-row" class="ghost">+ Add address</button>
+          </div>
+
+          <div class="field two-col">
+            <div>
+              <label for="city-hint">City hint (optional)</label>
+              <input id="city-hint" type="text" placeholder="Atlanta, GA" />
+            </div>
+            <div>
+              <label for="max-minutes">Max minutes: <span id="minutes-value">15</span></label>
+              <input id="max-minutes" type="range" min="5" max="60" value="15" step="1" />
+            </div>
+          </div>
+
+          <div class="field two-col">
+            <div>
+              <label for="objective">Objective</label>
+              <select id="objective">
+                <option value="min_sum" selected>Minimize total time</option>
+                <option value="min_max">Minimize slowest person</option>
+              </select>
+            </div>
+            <div>
+              <label for="profile">Profile</label>
+              <select id="profile">
+                <option value="walking" selected>Walking</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="primary" id="compute-btn">Compute</button>
+            <div id="status" role="status"></div>
+          </div>
+        </form>
+
+        <div id="results" class="results hidden">
+          <div class="result-header">
+            <div>
+              <p class="eyebrow">Meeting point</p>
+              <h2 id="mp-coords">—</h2>
+              <p id="mp-reachability"></p>
+            </div>
+            <div class="badge" id="objective-badge">min_sum</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Address</th>
+                <th>ETA (min)</th>
+              </tr>
+            </thead>
+            <tbody id="participants"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="map-panel">
+        <div id="map"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

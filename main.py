@@ -9,7 +9,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import httpx
 from fastapi import Body, FastAPI, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 from shapely.geometry import GeometryCollection, MultiPolygon, Polygon, shape, mapping
 
@@ -365,6 +366,22 @@ def main():
     import uvicorn
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+
+@app.get("/config.js", include_in_schema=False)
+async def config_js():
+    """Expose a public Mapbox token to the browser."""
+    token = os.getenv("MAPBOX_PUBLIC_TOKEN") or os.getenv("MAPBOX_TOKEN")
+    body = (
+        f'window.MAPBOX_TOKEN = "{token}";\n'
+        if token
+        else "window.MAPBOX_TOKEN = null;\n"
+    )
+    return PlainTextResponse(body, media_type="application/javascript")
+
+
+# Serve the static single-page frontend.
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 
 if __name__ == "__main__":
