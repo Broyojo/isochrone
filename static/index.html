@@ -58,6 +58,17 @@
             </div>
           </div>
 
+          <div class="field two-col">
+            <label class="toggle">
+              <input id="use-grid" type="checkbox" />
+              <span>Use grid search for fairer meeting point</span>
+            </label>
+            <div>
+              <label for="grid-res">Grid resolution (m)</label>
+              <input id="grid-res" type="number" min="50" max="1000" value="200" />
+            </div>
+          </div>
+
           <div class="actions">
             <button type="submit" class="primary" id="compute-btn">Compute</button>
             <div id="status" role="status"></div>

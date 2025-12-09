@@ -5,6 +5,7 @@ import os
 import urllib.parse
 from contextlib import asynccontextmanager
 from functools import reduce
+import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import httpx
@@ -12,7 +13,7 @@ from fastapi import Body, FastAPI, HTTPException, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
-from shapely.geometry import GeometryCollection, MultiPolygon, Polygon, shape, mapping
+from shapely.geometry import GeometryCollection, MultiPolygon, Point, Polygon, shape, mapping
 
 # Configuration constants
 MAX_PARTICIPANTS = 10
@@ -20,6 +21,9 @@ DEFAULT_MAX_MINUTES = 15
 MAX_MAX_MINUTES = 60
 SUPPORTED_OBJECTIVES = {"min_sum", "min_max"}
 SUPPORTED_PROFILES = {"walking", "driving"}
+DEFAULT_GRID_RESOLUTION_M = 200
+MAX_CANDIDATES = 60
+MAX_CONCURRENT_DIRECTIONS = 5
 
 # Simple in-memory cache for geocoding results
 _geocode_cache: Dict[str, Tuple[float, float]] = {}
@@ -42,6 +46,7 @@ class MeetingPointRequest(BaseModel):
     objective: str = Field("min_sum")
     grid_resolution_m: Optional[float] = Field(None, gt=0)
     city_hint: Optional[str] = None
+    use_grid_search: bool = Field(False)
 
     @field_validator("addresses")
     @classmethod
@@ -211,6 +216,36 @@ def _polygonal_region(geometry):
     return Polygon()
 
 
+def _grid_step_degrees(resolution_m: float, lat_deg: float) -> Tuple[float, float]:
+    # Approximate meters per degree.
+    meters_per_deg_lat = 111_320.0
+    meters_per_deg_lon = meters_per_deg_lat * math.cos(math.radians(lat_deg))
+    lat_step = resolution_m / meters_per_deg_lat
+    lon_step = resolution_m / max(meters_per_deg_lon, 1e-6)
+    return lon_step, lat_step
+
+
+def _generate_candidate_points(region: Polygon, resolution_m: float) -> List[Tuple[float, float]]:
+    """Generate a grid of candidate points inside the polygon, up to MAX_CANDIDATES."""
+    minx, miny, maxx, maxy = region.bounds
+    center_lat = (miny + maxy) / 2
+    lon_step, lat_step = _grid_step_degrees(resolution_m, center_lat)
+    candidates: List[Tuple[float, float]] = []
+    y = miny
+    while y <= maxy + 1e-9 and len(candidates) < MAX_CANDIDATES:
+        x = minx
+        while x <= maxx + 1e-9 and len(candidates) < MAX_CANDIDATES:
+            pt = (x, y)
+            if region.contains(Point(pt)):
+                candidates.append(pt)
+            x += lon_step
+        y += lat_step
+    if not candidates:
+        centroid = region.centroid
+        candidates.append((centroid.x, centroid.y))
+    return candidates[:MAX_CANDIDATES]
+
+
 async def _travel_time_seconds(
     client: httpx.AsyncClient,
     origin: Tuple[float, float],
@@ -320,42 +355,103 @@ async def meeting_point(payload: MeetingPointRequest = Body(...)):
                 "profile": payload.profile,
             },
         )
-    centroid = region.centroid
-    meeting_point = {"lat": centroid.y, "lng": centroid.x}
 
-    # Compute travel times to the centroid
-    travel_tasks = [
-        _travel_time_seconds(client, coord, (centroid.x, centroid.y), payload.profile, token)
-        for coord in coords
-    ]
-    durations_seconds = await asyncio.gather(*travel_tasks)
-    durations_minutes = [round(d / 60, 1) for d in durations_seconds]
+    async def eval_candidate(point: Tuple[float, float]):
+        sem = eval_candidate.semaphore
+        async with sem:
+            tasks = [
+                _travel_time_seconds(client, coord, point, payload.profile, token)
+                for coord in coords
+            ]
+            durations = await asyncio.gather(*tasks)
+            minutes = [d / 60 for d in durations]
+            if any(m > effective_max_minutes * 1.05 for m in minutes):
+                return None
+            score = _objective_value(minutes, payload.objective)
+            return {"point": point, "minutes": minutes, "score": score}
 
+    eval_candidate.semaphore = asyncio.Semaphore(MAX_CONCURRENT_DIRECTIONS)
+
+    candidates: List[Tuple[float, float]] = []
+    candidate_points_geojson = None
+
+    if payload.use_grid_search:
+        res_m = payload.grid_resolution_m or DEFAULT_GRID_RESOLUTION_M
+        candidates = _generate_candidate_points(region, res_m)
+        centroid = region.centroid
+        if (centroid.x, centroid.y) not in candidates:
+            candidates.append((centroid.x, centroid.y))
+        candidate_points_geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": {"type": "Point", "coordinates": [pt[0], pt[1]]},
+                }
+                for pt in candidates
+            ],
+        }
+    else:
+        centroid = region.centroid
+        candidates = [(centroid.x, centroid.y)]
+
+    evaluations = await asyncio.gather(*(eval_candidate(pt) for pt in candidates))
+    valid = [e for e in evaluations if e]
+
+    if not valid:
+        # fallback: centroid without budget filter
+        centroid = region.centroid
+        point = (centroid.x, centroid.y)
+        durations = await asyncio.gather(
+            *[_travel_time_seconds(client, coord, point, payload.profile, token) for coord in coords]
+        )
+        minutes = [d / 60 for d in durations]
+        meeting_point = {"lat": point[1], "lng": point[0]}
+        participants = [
+            {"address": address, "lat": coord[1], "lng": coord[0], "eta_minutes": round(m, 1)}
+            for address, coord, m in zip(addresses, coords, minutes)
+        ]
+        return {
+            "meeting_point": meeting_point,
+            "participants": participants,
+            "objective": payload.objective,
+            "objective_value": round(_objective_value(minutes, payload.objective), 2),
+            "max_minutes": effective_max_minutes,
+            "reachable": all(m <= effective_max_minutes + 0.5 for m in minutes),
+            "reason": "no_candidate_within_budget",
+            "debug": {
+                "intersection_polygons_geojson": mapping(region),
+                "candidate_points_geojson": candidate_points_geojson,
+            },
+        }
+
+    best = min(valid, key=lambda e: e["score"])
+    meeting_point = {"lat": best["point"][1], "lng": best["point"][0]}
     participants = []
-    for address, coord, eta in zip(addresses, coords, durations_minutes):
+    for address, coord, eta in zip(addresses, coords, best["minutes"]):
         participants.append(
             {
                 "address": address,
                 "lat": coord[1],
                 "lng": coord[0],
-                "eta_minutes": eta,
+                "eta_minutes": round(eta, 1),
             }
         )
 
-    objective_value = round(_objective_value(durations_minutes, payload.objective), 2)
-    reachable = all(d <= effective_max_minutes + 0.5 for d in durations_minutes)
+    reachable = all(m <= effective_max_minutes + 0.5 for m in best["minutes"])
 
     response_body = {
         "meeting_point": meeting_point,
         "participants": participants,
         "objective": payload.objective,
-        "objective_value": objective_value,
+        "objective_value": round(best["score"], 2),
         "max_minutes": effective_max_minutes,
         "profile": payload.profile,
         "reachable": reachable,
         "debug": {
             "intersection_polygons_geojson": mapping(region),
-            "candidate_points_geojson": None,
+            "candidate_points_geojson": candidate_points_geojson,
         },
     }
 

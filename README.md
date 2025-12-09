@@ -38,5 +38,8 @@ curl -X POST http://localhost:8000/api/meeting-point \
 - Addresses are deduplicated (case-insensitive) and capped at 10.
 - Profile currently supports `walking` and `driving`.
 - If the intersection of isochrones is empty, the service retries once with `max_minutes + 5` (up to 60). If still empty, `reachable=false` is returned.
-- Meeting point is the centroid of the largest reachable region; per-participant ETAs come from Mapbox Directions.
-- Debug payload includes the intersection polygon as GeoJSON; grid search is not implemented in this MVP.
+- Meeting point is either the centroid or (when `use_grid_search` is true) the best candidate from a sampled grid that minimizes your chosen objective.
+- Debug payload includes the intersection polygon as GeoJSON and optional candidate points when grid search is enabled.
+
+## Grid search (optional)
+- To honor `objective` more precisely, send `use_grid_search: true` (and optionally `grid_resolution_m`, default 200). The server samples points inside the reachable region, evaluates travel times to each, and picks the point minimizing `objective`.

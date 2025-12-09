@@ -103,6 +103,18 @@ input[type="range"] { padding: 0; }
   gap: 12px;
 }
 
+.toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+}
+
+.toggle input { width: auto; }
+
 .address-row {
   display: flex;
   gap: 8px;

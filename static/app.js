@@ -5,6 +5,8 @@
   const objectiveSel = document.getElementById("objective");
   const profileSel = document.getElementById("profile");
   const cityHintInput = document.getElementById("city-hint");
+  const useGrid = document.getElementById("use-grid");
+  const gridRes = document.getElementById("grid-res");
   const addressList = document.getElementById("address-list");
   const results = document.getElementById("results");
   const participantsEl = document.getElementById("participants");
@@ -159,6 +161,26 @@
     });
   }
 
+  function drawCandidates(geojson) {
+    if (!geojson) return;
+    const sourceId = "candidates";
+    sources.push(sourceId);
+    map.addSource(sourceId, { type: "geojson", data: geojson });
+    const layerId = "candidates-layer";
+    layerIds.push(layerId);
+    map.addLayer({
+      id: layerId,
+      type: "circle",
+      source: sourceId,
+      paint: {
+        "circle-radius": 5,
+        "circle-color": "#f472b6",
+        "circle-stroke-width": 1,
+        "circle-stroke-color": "#0b1224",
+      },
+    });
+  }
+
   function fitBounds(features) {
     if (!features.length) return;
     const bounds = new mapboxgl.LngLatBounds();
@@ -185,6 +207,8 @@
       max_minutes: Number(minutesInput.value),
       objective: objectiveSel.value,
       profile: profileSel.value,
+      use_grid_search: useGrid.checked,
+      grid_resolution_m: useGrid.checked ? Number(gridRes.value || "0") || undefined : undefined,
     };
 
     let response;
@@ -235,6 +259,7 @@
 
     addMarker(data.meeting_point.lng, data.meeting_point.lat, "#fbbf24");
     drawIntersection(data.debug?.intersection_polygons_geojson);
+    drawCandidates(data.debug?.candidate_points_geojson);
 
     // Fit view
     const pts = data.participants.map((p) => [p.lng, p.lat]);
