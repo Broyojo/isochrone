@@ -77,6 +77,11 @@
     markers.push(marker);
   }
 
+  function profileLabel(profile) {
+    if (profile === "driving") return "driving";
+    return "walking";
+  }
+
   async function fetchDirections(origin, destination) {
     const url = new URL(
       `https://api.mapbox.com/directions/v5/mapbox/${profileSel.value}/${origin[0]},${origin[1]};${destination[0]},${destination[1]}`
@@ -204,14 +209,16 @@
     objBadge.textContent = data.objective;
     if (!data.reachable) {
       mpCoordsEl.textContent = "No common reachable region";
-      mpReachEl.textContent = `max_minutes: ${data.max_minutes}`;
+    const mode = profileLabel(data.profile || profileSel.value);
+    mpReachEl.textContent = `Max minutes: ${data.max_minutes} (${mode})`;
       participantsEl.innerHTML = "";
       results.classList.remove("hidden");
       return;
     }
 
     mpCoordsEl.textContent = `${data.meeting_point.lat.toFixed(6)}, ${data.meeting_point.lng.toFixed(6)}`;
-    mpReachEl.textContent = `Within ${data.max_minutes} minutes walking`;
+    const mode = profileLabel(data.profile || profileSel.value);
+    mpReachEl.textContent = `Within ${data.max_minutes} minutes ${mode}`;
 
     participantsEl.innerHTML = "";
     data.participants.forEach((p) => {

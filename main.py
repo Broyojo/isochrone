@@ -19,7 +19,7 @@ MAX_PARTICIPANTS = 10
 DEFAULT_MAX_MINUTES = 15
 MAX_MAX_MINUTES = 60
 SUPPORTED_OBJECTIVES = {"min_sum", "min_max"}
-SUPPORTED_PROFILES = {"walking"}
+SUPPORTED_PROFILES = {"walking", "driving"}
 
 # Simple in-memory cache for geocoding results
 _geocode_cache: Dict[str, Tuple[float, float]] = {}
@@ -85,7 +85,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Isochrone Meeting Point API",
     version="0.1.0",
-    description="Compute a fair meeting point reachable within a walking time budget.",
+    description="Compute a fair meeting point reachable within a travel time budget.",
     lifespan=lifespan,
 )
 
@@ -304,6 +304,7 @@ async def meeting_point(payload: MeetingPointRequest = Body(...)):
                 "reachable": False,
                 "reason": "no_common_reachable_region",
                 "max_minutes": effective_max_minutes,
+                "profile": payload.profile,
             },
         )
 
@@ -316,6 +317,7 @@ async def meeting_point(payload: MeetingPointRequest = Body(...)):
                 "reachable": False,
                 "reason": "no_common_reachable_region",
                 "max_minutes": effective_max_minutes,
+                "profile": payload.profile,
             },
         )
     centroid = region.centroid
@@ -349,6 +351,7 @@ async def meeting_point(payload: MeetingPointRequest = Body(...)):
         "objective": payload.objective,
         "objective_value": objective_value,
         "max_minutes": effective_max_minutes,
+        "profile": payload.profile,
         "reachable": reachable,
         "debug": {
             "intersection_polygons_geojson": mapping(region),

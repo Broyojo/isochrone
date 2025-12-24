@@ -60,6 +60,7 @@ async def test_meeting_point_success():
         data = res.json()
         assert data["reachable"] is True
         assert "meeting_point" in data
+        assert data["profile"] == "walking"
         # Centroid of box(0,0,1,1) is (0.5,0.5)
         assert pytest.approx(0.5, rel=1e-3) == data["meeting_point"]["lat"]
         assert pytest.approx(0.5, rel=1e-3) == data["meeting_point"]["lng"]
@@ -84,6 +85,7 @@ async def test_unreachable_when_intersection_empty(monkeypatch):
         data = res.json()
         assert data["reachable"] is False
         assert data["reason"] == "no_common_reachable_region"
+        assert data["profile"] == "walking"
 
 
 def test_polygonal_region_handles_geometry_collection():
