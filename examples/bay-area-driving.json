@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "city_hint": "Bay Area, CA",
+  "objective": "min_sum",
+  "max_minutes": 60,
+  "participants": [
+    {
+      "address": "1600 Amphitheatre Pkwy, Mountain View, CA 94043",
+      "profile": "driving"
+    },
+    {
+      "address": "351 E Evelyn Ave, Mountain View, CA 94041",
+      "profile": "driving"
+    },
+    {
+      "address": "537 Hamilton Ave, Palo Alto, CA 94301",
+      "profile": "driving"
+    },
+    {
+      "address": "2788 San Tomas Expy, Santa Clara, CA 95051",
+      "profile": "driving"
+    },
+    {
+      "address": "527 Howard St, San Francisco, CA 94105",
+      "profile": "driving"
+    },
+    {
+      "address": "4750 Patrick Henry Dr, Santa Clara, CA 95054",
+      "profile": "driving"
+    }
+  ]
+}

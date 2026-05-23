@@ -1,0 +1,138 @@
+[
+  {
+    "id": "bay-area-driving",
+    "label": "Bay Area driving",
+    "city_hint": "Bay Area, CA",
+    "objective": "min_sum",
+    "max_minutes": 60,
+    "map_view": {
+      "center": {
+        "lng": -122.118,
+        "lat": 37.545
+      },
+      "zoom": 9.4
+    },
+    "participants": [
+      {
+        "address": "1600 Amphitheatre Pkwy, Mountain View, CA 94043",
+        "profile": "driving"
+      },
+      {
+        "address": "351 E Evelyn Ave, Mountain View, CA 94041",
+        "profile": "driving"
+      },
+      {
+        "address": "537 Hamilton Ave, Palo Alto, CA 94301",
+        "profile": "driving"
+      },
+      {
+        "address": "2788 San Tomas Expy, Santa Clara, CA 95051",
+        "profile": "driving"
+      },
+      {
+        "address": "527 Howard St, San Francisco, CA 94105",
+        "profile": "driving"
+      },
+      {
+        "address": "4750 Patrick Henry Dr, Santa Clara, CA 95054",
+        "profile": "driving"
+      }
+    ]
+  },
+  {
+    "id": "manhattan-walking",
+    "label": "Manhattan walking",
+    "city_hint": "New York, NY",
+    "objective": "min_sum",
+    "max_minutes": 25,
+    "map_view": {
+      "center": {
+        "lng": -73.985,
+        "lat": 40.748
+      },
+      "zoom": 13.2
+    },
+    "participants": [
+      {
+        "address": "20 W 34th St, New York, NY 10001",
+        "profile": "walking"
+      },
+      {
+        "address": "476 5th Ave, New York, NY 10018",
+        "profile": "walking"
+      },
+      {
+        "address": "89 E 42nd St, New York, NY 10017",
+        "profile": "walking"
+      },
+      {
+        "address": "11 Madison Ave, New York, NY 10010",
+        "profile": "walking"
+      }
+    ]
+  },
+  {
+    "id": "atlanta-mixed",
+    "label": "Atlanta mixed modes",
+    "city_hint": "Atlanta, GA",
+    "objective": "min_sum",
+    "max_minutes": 35,
+    "map_view": {
+      "center": {
+        "lng": -84.379,
+        "lat": 33.772
+      },
+      "zoom": 12.6
+    },
+    "participants": [
+      {
+        "address": "225 Baker St NW, Atlanta, GA 30313",
+        "profile": "walking"
+      },
+      {
+        "address": "675 Ponce De Leon Ave NE, Atlanta, GA 30308",
+        "profile": "cycling"
+      },
+      {
+        "address": "75 5th St NW, Atlanta, GA 30308",
+        "profile": "walking"
+      },
+      {
+        "address": "931 Monroe Dr NE, Atlanta, GA 30308",
+        "profile": "driving"
+      }
+    ]
+  },
+  {
+    "id": "sf-cross-town",
+    "label": "San Francisco crosstown",
+    "city_hint": "San Francisco, CA",
+    "objective": "min_sum",
+    "max_minutes": 45,
+    "map_view": {
+      "center": {
+        "lng": -122.442,
+        "lat": 37.765
+      },
+      "zoom": 11.5
+    },
+    "participants": [
+      {
+        "address": "1 Ferry Building, San Francisco, CA 94111",
+        "profile": "cycling"
+      },
+      {
+        "address": "2400 Mission St, San Francisco, CA 94110",
+        "profile": "driving"
+      },
+      {
+        "address": "501 Stanyan St, San Francisco, CA 94117",
+        "profile": "cycling"
+      },
+      {
+        "address": "1000 Great Hwy, San Francisco, CA 94121",
+        "profile": "driving"
+      }
+    ]
+  }
+]

@@ -1,7 +1,7 @@
 [project]
 name = "isochrone"
 version = "0.1.0"
-description = "Add your description here"
+description = "Find a fair meeting point for friends using Mapbox travel-time isochrones."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -15,4 +15,30 @@ dependencies = [
 dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
+    "ruff>=0.15.14",
+    "ty>=0.0.39",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "ANN",    # ty is the source of truth for type checking in this project.
+    "C901",   # The route handler is intentionally kept in one clear flow for now.
+    "COM812", # Recommended when using the Ruff formatter.
+    "D",      # Small app modules/tests do not need mandatory docstrings everywhere.
+    "EM101",  # Inline FastAPI/Pydantic validation messages are clearer here.
+    "EM102",
+    "PLR0915",
+    "PLR2004",
+    "TRY003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "ARG001",
+    "SLF001",
+    "S101",
 ]

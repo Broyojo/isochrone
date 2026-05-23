@@ -3,74 +3,78 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fair Meeting Point</title>
+  <title>Meeting Point Finder</title>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css" rel="stylesheet" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="page">
-    <header>
+  <div class="app-shell">
+    <header class="topbar">
       <div>
-        <p class="eyebrow">Isochrone MVP</p>
-        <h1>Find a fair meeting point</h1>
-        <p class="lede">Enter up to 10 addresses, set a travel time budget, and we will pick a spot all of you can reach.</p>
+        <p class="eyebrow">Meeting point finder</p>
+        <h1>Find the best meeting point</h1>
       </div>
-      <div class="pill">Mapbox + FastAPI</div>
+      <div class="pill">Autosaved locally</div>
     </header>
 
-    <main class="layout">
-      <section class="panel">
+    <main class="workspace">
+      <aside class="sidebar">
         <form id="meeting-form">
           <div class="field">
-            <label>Addresses</label>
+            <label for="example-select">Examples</label>
+            <div class="example-row">
+              <select id="example-select">
+                <option value="">Choose a setup</option>
+              </select>
+              <button type="button" id="load-example" class="ghost compact" disabled>Load</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="section-heading">
+              <label>Friends</label>
+              <span>Up to 10</span>
+            </div>
             <div id="address-list"></div>
-            <button type="button" id="add-row" class="ghost">+ Add address</button>
-          </div>
-
-          <div class="field two-col">
-            <div>
-              <label for="city-hint">City hint (optional)</label>
-              <input id="city-hint" type="text" placeholder="Atlanta, GA" />
-            </div>
-            <div>
-              <label for="max-minutes">Max minutes: <span id="minutes-value">15</span></label>
-              <input id="max-minutes" type="range" min="5" max="60" value="15" step="1" />
+            <button type="button" id="add-row" class="ghost">+ Add friend</button>
+            <div class="setup-actions">
+              <button type="button" id="import-setup" class="ghost compact">Import</button>
+              <button type="button" id="export-setup" class="ghost compact">Export</button>
+              <input id="setup-file" type="file" accept=".csv,.json,.txt" />
             </div>
           </div>
 
-          <div class="field two-col">
+          <div class="field input-grid">
+            <div class="location-control">
+              <input id="city-hint" type="hidden" />
+              <label>Search area</label>
+              <div class="location-row">
+                <span id="location-status">Finding your area...</span>
+                <button type="button" id="use-location" class="ghost compact">Use my location</button>
+              </div>
+            </div>
             <div>
-              <label for="objective">Objective</label>
+              <label for="objective">Goal</label>
               <select id="objective">
-                <option value="min_sum" selected>Minimize total time</option>
-                <option value="min_max">Minimize slowest person</option>
-              </select>
-            </div>
-            <div>
-              <label for="profile">Profile</label>
-              <select id="profile">
-                <option value="walking" selected>Walking</option>
-                <option value="driving">Driving</option>
+                <option value="min_sum" selected>Lowest total time</option>
+                <option value="min_max">Fairest split</option>
               </select>
             </div>
           </div>
 
-          <div class="field two-col">
-            <label class="toggle">
-              <input id="use-grid" type="checkbox" />
-              <span>Use grid search for fairer meeting point</span>
-            </label>
-            <div>
-              <label for="grid-res">Grid resolution (m)</label>
-              <input id="grid-res" type="number" min="50" max="1000" value="200" />
-            </div>
+          <div class="field">
+            <label for="max-minutes">Max ETA per friend: <span id="minutes-value">15</span> min</label>
+            <input id="max-minutes" type="range" min="5" max="60" value="15" step="1" />
           </div>
 
           <div class="actions">
-            <button type="submit" class="primary" id="compute-btn">Compute</button>
+            <button type="submit" class="primary" id="compute-btn">
+              <span class="button-spinner" aria-hidden="true"></span>
+              <span id="compute-label">Find best spot</span>
+            </button>
             <div id="status" role="status"></div>
           </div>
         </form>
@@ -82,22 +86,47 @@
               <h2 id="mp-coords">—</h2>
               <p id="mp-reachability"></p>
             </div>
-            <div class="badge" id="objective-badge">min_sum</div>
+            <div class="badge" id="objective-badge">Lowest total</div>
           </div>
           <table>
             <thead>
               <tr>
-                <th>Address</th>
+                <th>Friend</th>
+                <th>Mode</th>
                 <th>ETA (min)</th>
               </tr>
             </thead>
             <tbody id="participants"></tbody>
           </table>
         </div>
-      </section>
+      </aside>
 
-      <section class="map-panel">
+      <section class="map-panel" aria-label="Meeting map">
         <div id="map"></div>
+        <div id="map-loading" class="map-loading hidden" role="status" aria-live="polite">
+          <span class="loading-spinner" aria-hidden="true"></span>
+          <span id="map-loading-text">Loading map</span>
+        </div>
+        <div class="map-controls" aria-label="Map controls">
+          <label class="map-toggle">
+            <input id="score-heatmap" type="checkbox" />
+            <span>Scores</span>
+          </label>
+        </div>
+        <div id="score-legend" class="score-legend hidden" aria-label="Score legend">
+          <strong>Score</strong>
+          <div class="score-scale">
+            <span>Better</span>
+            <i></i>
+            <span>Worse</span>
+          </div>
+        </div>
+        <div class="map-legend" aria-label="Map legend">
+          <strong>Legend</strong>
+          <span><i class="legend-dot legend-user"></i>You</span>
+          <span><i class="legend-dot legend-friend"></i>Friend</span>
+          <span><i class="legend-dot legend-meeting"></i>Best spot</span>
+        </div>
       </section>
     </main>
   </div>

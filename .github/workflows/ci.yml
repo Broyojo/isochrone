@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Check lockfile
+        run: uv lock --check
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run ty check
+
+      - name: Tests
+        run: uv run pytest
+
+      - name: JavaScript syntax
+        run: node --check static/app.js
+
+      - name: App smoke
+        env:
+          HOST: 127.0.0.1
+          PORT: 8000
+          MAPBOX_TOKEN: sk.test
+          MAPBOX_PUBLIC_TOKEN: pk.test
+        run: |
+          uv run python main.py &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          uv run python scripts/smoke.py \
+            --base-url http://127.0.0.1:8000 \
+            --expect-public-token \
+            --attempts 20 \
+            --retry-delay 0.5
+
+      - name: Docker build
+        run: docker build -t meeting-point-finder:ci .
+
+      - name: Docker smoke
+        run: |
+          docker run \
+            --rm \
+            --detach \
+            --name meeting-point-finder-ci \
+            --env MAPBOX_TOKEN=sk.test \
+            --env MAPBOX_PUBLIC_TOKEN=pk.test \
+            --publish 8001:8000 \
+            --health-interval 5s \
+            --health-start-period 2s \
+            meeting-point-finder:ci
+          trap 'docker stop meeting-point-finder-ci 2>/dev/null || true' EXIT
+          uv run python scripts/smoke.py \
+            --base-url http://127.0.0.1:8001 \
+            --expect-public-token \
+            --attempts 20 \
+            --retry-delay 0.5
+          for _ in {1..20}; do
+            docker_health="$(docker inspect --format '{{.State.Health.Status}}' meeting-point-finder-ci)"
+            if [ "$docker_health" = "healthy" ]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker inspect --format '{{json .State.Health}}' meeting-point-finder-ci
+          exit 1
